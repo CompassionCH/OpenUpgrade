@@ -224,27 +224,19 @@ def _account_move_fast_fill_display_type(env):
     openupgrade.logged_query(
         env.cr,
         """
-        UPDATE
-            account_move_line AS aml2
-        SET
-            display_type = COALESCE((
-                SELECT
-                    CASE WHEN am.move_type NOT IN ('out_invoice', 'out_refund', 'in_invoice', 'in_refund') THEN
-                        'product'
-                    WHEN aml.tax_line_id IS NOT NULL THEN
-                        'tax'
-                    WHEN aa.account_type IN ('asset_receivable', 'liability_payable') THEN
-                        'payment_term'
-                    ELSE
-                        'product'
-                    END AS display_type
-                FROM account_move_line AS aml
-                    INNER JOIN account_move AS am ON am.id = aml.move_id
-                    INNER JOIN account_account AS aa ON aa.id = aml.account_id
-                WHERE
-                    aml.id = aml2.id), 'product')
-        WHERE
-            aml2.display_type IS NULL;
+        UPDATE account_move_line aml
+        SET display_type = CASE
+           WHEN am.move_type NOT IN
+                ('out_invoice', 'out_refund', 'in_invoice', 'in_refund') THEN 'product'
+           WHEN aml.tax_line_id IS NOT NULL                              THEN 'tax'
+           WHEN aa.internal_type IN ('receivable', 'payable')            THEN 'payment_term'
+           ELSE 'product'
+            END
+        FROM account_move    am,
+             account_account aa
+        WHERE aml.display_type IS NULL
+        AND am.id           = aml.move_id
+        AND aa.id           = aml.account_id;
         """,
     )
     # Extra actions: set quantity = 0 for lines of type tax or payment_term according
